@@ -1,0 +1,115 @@
+---
+- name: Install packages on DB node
+  hosts: Database
+  become: yes
+  vars:
+    db_name: mediawiki
+    db_user: media_user
+    db_password: password
+
+  tasks:
+    - name: Install MariaDB Client and Server
+      apt:
+        name:
+          - mariadb-client
+          - mariadb-server
+        state: present
+        update_cache: yes
+
+    - name: Ensure MariaDB is running
+      systemd:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Change bind-address
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf 
+        regexp: '^bind-address\s*=\s*127\.0\.0\.1'
+        line: 'bind-address = 0.0.0.0'
+    
+    - name: Create MariaDB user
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "*.*:ALL,GRANT"
+        state: present
+
+    - name: Create MediaWiki database
+      mysql_db:
+        login_user: "{{ db_user }}"
+        login_password: "{{ db_password }}"
+        name: "{{ db_name }}"
+        state: present
+
+    - name: Restart MariaDB
+      service:
+        name: mariadb
+        state: restarted
+
+
+- name: Install and configure MediaWiki, on MediaWiki node
+  hosts: MediaWiki
+  become: yes
+  vars:
+    mediawiki_version: 1.4
+    version: 1.40.0
+    mediawiki_download_url: "https://releases.wikimedia.org/mediawiki/{{ mediawiki_version }}0/mediawiki-{{ version }}.zip"
+    mediawiki_install_dir: /var/www/html/mediawiki
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - apache2
+          - php
+          - php-mysql
+          - php-gd
+          - php-intl
+          - php-mbstring
+          - php-xml
+          - php-apcu
+          - libapache2-mod-php
+          - unzip
+        state: present
+
+    - name: Ensure Apache is running
+      systemd:
+        name: apache2
+        state: started
+        enabled: yes
+
+    - name: Download MediaWiki
+      get_url:
+        url: "{{ mediawiki_download_url }}"
+        dest: "/tmp/mediawiki-{{ mediawiki_version }}.zip"
+
+    - name: Extract MediaWiki
+      unarchive:
+        src: "/tmp/mediawiki-{{ mediawiki_version }}.zip"
+        dest: /var/www/html
+        remote_src: yes
+
+    - name: Move MediaWiki to the installation directory
+      command: mv /var/www/html/mediawiki-{{ version }} {{ mediawiki_install_dir }}
+
+    - name: Set permissions for MediaWiki installation directory
+      file:
+        path: "{{ mediawiki_install_dir }}"
+        owner: www-data
+        group: www-data
+        recurse: yes
+
+    - name: Configure Apache to serve MediaWiki
+      template:
+        src: mediawiki.conf.j2
+        dest: /etc/apache2/sites-available/mediawiki.conf
+      notify:
+        - restart apache
+
+  handlers:
+    - name: restart apache
+      service:
+        name: apache2
+        state: restarted
