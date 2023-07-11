@@ -1,3 +1,8 @@
+### Clone this project to your pc:
+
+git clone https://github.com/AbdelatifAitBara/MediaWiki
+
+
 IPs:
 
 - Master   : 192.168.10.10
