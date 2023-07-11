@@ -20,6 +20,8 @@ Before starting connect to the "master machine" and copy the ssh key to the othe
 
 Add the bellow details to your inventory file: sudo nano /etc/ansible/hosts
 
+```
+
 [Database]
 
 db ansible_host=192.168.10.11
@@ -28,7 +30,8 @@ db ansible_host=192.168.10.11
 
 media_wiki ansible_host=192.168.10.12
 
-Check that your master can ping the other machines by running : ansible all -m ping
+```
+
 
 ### Step 2 : 
 
